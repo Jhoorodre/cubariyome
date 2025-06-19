@@ -437,3 +437,5 @@ export const purgePreviousCache = () => {
     }
   }
 };
+
+export default remoteStorage;

@@ -1,225 +1,154 @@
+// src/components/MangaCard.js
 import React, { useState, useEffect, useRef, memo } from "react";
 import observer from "../utils/observer";
 import { HeartIcon, XIcon } from "@heroicons/react/solid";
-import { classNames } from "../utils/strings";
-import { globalHistoryHandler } from "../utils/remotestorage";
-import { mangaUrlSaver } from "../utils/compatability";
 import { SpinIcon } from "./Spinner";
 import Card from "./Card";
-import { convertImageUrl, resizedImageUrl } from "../sources/SourceUtils";
+import { classNames } from "../utils/strings";
+import { globalHistoryHandler } from "../utils/remotestorage";
 import { useTranslation } from "react-i18next";
 
 function MangaCard(props) {
   const { t } = useTranslation();
   const cardRef = useRef(null);
+  const componentRef = useRef(true); // Para verificar se o componente está montado
 
-  const [saved, setSaved] = useState(props.saved !== undefined ? props.saved : undefined);
-  const [saving, setSaving] = useState(props.saved === undefined);
-  const [removing, setRemoving] = useState(false);
+  // Props esperadas:
+  // mangaUrl (string): URL interna para a rota do leitor (ex: "#/reader/mangalivre/manga-slug").
+  // coverUrl (string): URL da imagem de capa, já pronta para uso (fornecida pelo proxy do backend).
+  // mangaTitle (string): Título do mangá.
+  // provider_id (string): ID da fonte (ex: "mangalivre").
+  // content_id (string): ID do conteúdo/mangá (ex: "manga-slug").
+  // saved (boolean, opcional): Indica se o mangá está salvo/favoritado.
+  // showRemoveButton (boolean, opcional): Exibe o botão 'X' para remover do histórico.
+  // storageCallback (function, opcional): Função para ser chamada após uma ação no storage, para atualizar a UI.
 
+  const {
+    mangaUrl,
+    coverUrl,
+    mangaTitle,
+    provider_id,
+    content_id,
+    showRemoveButton,
+    storageCallback,
+  } = props;
+  
+  const [saved, setSaved] = useState(props.saved);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  // Efeito para carregar o estado inicial de 'saved' do storage, se não for passado via props.
   useEffect(() => {
-    const currentCardRef = cardRef.current;
-    if (currentCardRef) {
-      observer.observe(currentCardRef);
-    }
-
-    if (props.saved === undefined) {
-      globalHistoryHandler
-        .isSeriesPinned(props.slug, props.sourceName)
+    // Se a prop 'saved' não for fornecida, consultamos o storage
+    if (props.saved === undefined && content_id && provider_id) {
+      // Usamos a função correta 'isSeriesPinned'
+      globalHistoryHandler.isSeriesPinned(content_id, provider_id)
         .then((isPinned) => {
-          if (cardRef.current) {
+          // O resultado (isPinned) é um booleano, então podemos usá-lo diretamente
+          if (componentRef.current) { // Garante que o componente ainda está montado
             setSaved(isPinned);
-            setSaving(false);
           }
         });
+    } else {
+        // Se a prop 'saved' for fornecida, usamos o valor dela
+        if (componentRef.current) { // Garante que o componente ainda está montado
+            setSaved(props.saved);
+        }
     }
+    // Cleanup function para marcar o componente como desmontado
+    return () => {
+        componentRef.current = false;
+    };
+  }, [props.saved, content_id, provider_id]); // Atualiza as dependências do hook
 
+  // Efeito para o lazy-loading da imagem de capa.
+  useEffect(() => {
+    const currentCardRef = cardRef.current;
+    if (currentCardRef && coverUrl) {
+      observer.observe(currentCardRef);
+    }
     return () => {
       if (currentCardRef) {
         observer.unobserve(currentCardRef);
       }
     };
-  }, [props.slug, props.sourceName, props.saved]);
+  }, [coverUrl]);
 
-  const consolidateStateAfterEffect = (newSaved, newSavingState, newRemovingState) => {
-    if (cardRef.current) {
-      if (newSaved !== undefined) setSaved(newSaved);
-      if (newSavingState !== undefined) setSaving(newSavingState);
-      if (newRemovingState !== undefined) setRemoving(newRemovingState);
-    }
-  };
-
-  const saveToHistoryInternal = () => {
-    return globalHistoryHandler
-      .pushSeries(
-        props.slug,
-        props.coverUrl,
-        props.sourceName,
-        mangaUrlSaver(props.mangaUrlizer(props.slug)),
-        props.mangaTitle
-      )
-      .then(() => {
-        if (props.storageCallback) {
-          props.storageCallback().then(() => {
-            consolidateStateAfterEffect(undefined, undefined, false);
-          });
-        } else {
-          consolidateStateAfterEffect(undefined, undefined, false);
-        }
-      });
-  };
-
-  const removeFromHistoryInternal = () => {
-    return globalHistoryHandler
-      .removeSeries(props.slug, props.sourceName)
-      .then(() => {
-        if (props.storageCallback) {
-          props.storageCallback().then(() => {
-            consolidateStateAfterEffect(undefined, undefined, false);
-          });
-        } else {
-          consolidateStateAfterEffect(undefined, undefined, false);
-        }
-      });
-  };
-
-  const saveToPinInternal = () => {
-    return globalHistoryHandler
-      .pinSeries(
-        props.slug,
-        props.coverUrl,
-        props.sourceName,
-        mangaUrlSaver(props.mangaUrlizer(props.slug)),
-        props.mangaTitle
-      )
-      .then(() => {
-        if (props.storageCallback) {
-          props.storageCallback().then(() => {
-            consolidateStateAfterEffect(true, false, undefined);
-          });
-        } else {
-          consolidateStateAfterEffect(true, false, undefined);
-        }
-      });
-  };
-
-  const removeFromPinInternal = () => {
-    return globalHistoryHandler
-      .unpinSeries(props.slug, props.sourceName)
-      .then(() => {
-        if (props.storageCallback) {
-          props.storageCallback().then(() => {
-            consolidateStateAfterEffect(false, false, undefined);
-          });
-        } else {
-          consolidateStateAfterEffect(false, false, undefined);
-        }
-      });
-  };
-
-  const addHistoryHandler = (e) => {
-    setRemoving(true);
-    saveToHistoryInternal();
-  };
-
-  const removeHistoryHandler = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!removing) {
-      setRemoving(true);
-      removeFromHistoryInternal();
-    }
-    return false;
+    if (isSaving || isRemoving || !content_id || !provider_id) return;
+
+    setIsSaving(true);
+    const newSavedState = !saved;
+    // Salva o estado atualizado no remoteStorage
+    await globalHistoryHandler.pinSeries(content_id, provider_id, newSavedState, { title: mangaTitle, coverUrl: coverUrl, url: mangaUrl });
+    
+    setSaved(newSavedState);
+    setIsSaving(false);
+    if (storageCallback) storageCallback();
   };
 
-  const pinHandler = (e) => {
+  const handleRemove = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!saving) {
-      setSaving(true);
-      if (!saved) {
-        saveToPinInternal();
-      } else {
-        removeFromPinInternal();
-      }
-    }
-    return false;
+    if (isSaving || isRemoving || !content_id || !provider_id) return;
+
+    setIsRemoving(true);
+    await globalHistoryHandler.removeSeries(content_id, provider_id);
+    setIsRemoving(false);
+    if (storageCallback) storageCallback();
   };
 
   return (
     <Card>
       <a
         ref={cardRef}
-        href={props.mangaUrlizer(props.slug)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={classNames(
-          "relative bg-no-repeat bg-cover bg-center bg-gray-300 dark:bg-gray-800",
-          "transform rounded-lg shadow-md scale-100 md:hover:scale-105",
-          "flex flex-col justify-between duration-100 ease-in-out",
-          "w-full h-full"
-        )}
-        data-background-image={`linear-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 20%, rgba(0,0,0,0.1) 80%, rgba(0,0,0,0.75) 100%), url("${resizedImageUrl(
-          convertImageUrl(props.coverUrl, props.sourceName),
-          "w=300"
-        )}")`}
-        onClick={addHistoryHandler}
+        href={mangaUrl || "#"}
+        // A 'coverUrl' agora já é a URL do proxy, vinda da API
+        data-background-image={coverUrl ? `linear-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 20%, rgba(0,0,0,0.1) 80%, rgba(0,0,0,0.75) 100%), url("${coverUrl}")` : ""}
+        className="block group relative p-4 pb-2 overflow-hidden aspect-w-7 aspect-h-10 rounded-lg bg-gray-200 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-100 focus-within:ring-indigo-500 shadow-lg"
+        style={{
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
+        }}
+        onMouseEnter={() => {
+          if (cardRef.current && cardRef.current.style.backgroundImage === "") {
+            cardRef.current.style.backgroundImage = cardRef.current.dataset.backgroundImage;
+          }
+        }}
       >
-        {/* Container do Topo: Nome da Fonte e Botões */}
-        <div className="flex justify-between items-center w-full p-2 z-10">
-          <p 
-            className="text-xs md:text-sm text-white font-bold"
-            style={{ textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' }} // Contorno preto nítido
-          >
-            {t(`sourceName${props.sourceName.replace(/\s+/g, '')}`, props.sourceName)}
-          </p>
-          <div className="flex flex-row">
-            {props.showRemoveButton && (
-              <button
-                title={t('tooltipRemoveFromHistory')}
-                className="p-1 text-white transition-colors duration-150 rounded-full hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 opacity-70 hover:opacity-100"
-                onClick={removeHistoryHandler}
-              >
-                {removing ? (
-                  <SpinIcon className="w-5 h-5" />
-                ) : (
-                  <XIcon className="w-5 h-5" />
-                )}
-              </button>
-            )}
-            <button
-              title={saved ? t('tooltipRemoveFromFavorites') : t('tooltipAddToFavorites')}
-              className={classNames(
-                "p-1 text-white transition-colors duration-150 rounded-full focus:outline-none focus:ring-2 opacity-70 hover:opacity-100",
-                saved
-                  ? "text-red-500 hover:bg-red-200 focus:ring-red-500"
-                  : "hover:bg-gray-500 focus:ring-gray-500"
-              )}
-              onClick={pinHandler}
-            >
-              {saving ? (
-                <SpinIcon className="w-5 h-5" />
-              ) : (
-                <HeartIcon
-                  className={classNames(
-                    "w-5 h-5",
-                    saved ? "fill-current" : ""
-                  )}
-                />
-              )}
-            </button>
-          </div>
+        <div className="absolute top-2 right-2 flex space-x-1">
+          {props.views !== undefined && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 bg-opacity-80">
+              <EyeIcon className="h-4 w-4 mr-1" />
+              {props.views}
+            </span>
+          )}
+          {props.likes !== undefined && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800 bg-opacity-80">
+              <HeartIcon className="h-4 w-4 mr-1" />
+              {props.likes}
+            </span>
+          )}
         </div>
 
-        {/* Container do Rodapé: Título do Mangá */}
-        <div className="w-full p-2 z-10">
-          <h3 
-            className="text-sm sm:text-base text-white font-bold"
-            style={{ textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' }} // Contorno preto nítido
-          >
-            {props.mangaTitle}
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black to-transparent bg-opacity-50">
+          <h3 className="text-md font-semibold text-white truncate group-hover:whitespace-normal group-hover:overflow-visible">
+            {mangaTitle || t("fallback.title")}
           </h3>
+          {props.간단한설명 && (
+            <p className="mt-1 text-sm text-gray-300 hidden group-hover:block">
+              {props.간단한설명}
+            </p>
+          )}
         </div>
+        {saved && (
+          <div className="absolute top-2 left-2">
+            <HeartIcon className="h-6 w-6 text-red-500" />
+          </div>
+        )}
       </a>
     </Card>
   );

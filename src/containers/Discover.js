@@ -1,164 +1,93 @@
-import React, { Fragment, PureComponent } from "react";
-import MangaCard from "../components/MangaCard";
-import ViewMorePlaceholder from "../components/ViewMorePlaceholder";
-import ScrollableCarousel from "../components/ScrollableCarousel";
-import Section from "../components/Section";
-import Spinner, { SpinIcon } from "../components/Spinner";
-import Container from "../components/Container";
-import { capitalizeFirstLetters } from "../utils/strings";
-import { sourceMap } from "../sources/Sources";
-import { RadioGroup } from "@headlessui/react";
-import { classNames } from "../utils/strings";
-import EndPlaceholder from "../components/EndPlaceholder";
-import { withTranslation } from 'react-i18next'; // Adicionar import
+// src/containers/Discover.js
 
-class DiscoverClass extends PureComponent { // Renomear para DiscoverClass
-  state = {
-    currentSource: Object.keys(sourceMap)[0],
-  };
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import Section from '../components/Section';
+import Spinner from '../components/Spinner';
+import Container from '../components/Container';
 
-  componentDidMount = () => {
-    this.props.setPath("Discover");
-  };
+// A URL base da nossa API Django que está rodando localmente
+const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-  getSourceNamesAndIcons() {
-    let activeSources = new Set(
-      Object.values(this.props.discover).map((section) => section.sourceName)
-    );
-    let response = [];
-    for (const [sourceName, source] of Object.entries(sourceMap)) {
-      let sourceDetails = source.getSourceDetails();
-      response.push({
-        name: sourceName,
-        icon: `${sourceDetails.remoteBaseUrl}/includes/${sourceDetails.icon}`,
-        disabled: !activeSources.has(sourceName),
-      });
+const Discover = () => {
+    const { t } = useTranslation();
+    const [sections, setSections] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchDiscoverData = async () => {
+            setIsLoading(true);
+            setError(null);
+
+            try {
+                // 1. Buscar a lista de provedores
+                const providersResponse = await fetch(`${API_BASE_URL}/content-providers/list/`);
+                if (!providersResponse.ok) throw new Error(`Erro ao buscar provedores: ${providersResponse.statusText}`);
+                const providers = await providersResponse.json();
+
+                // Filtra apenas provedores em pt-BR para a página inicial
+                const targetProviders = providers.filter(p => p.language === 'pt-BR' && !p.is_nsfw);
+
+                // 2. Para cada provedor, buscar mangás populares (usando uma busca genérica)
+                const sectionsPromises = targetProviders.map(async (provider) => {
+                    const mangaResponse = await fetch(`${API_BASE_URL}/content-discovery/search/?query=a&provider_id=${provider.id}`);
+                    if (!mangaResponse.ok) {
+                        console.error(`Falha ao buscar dados para ${provider.name}`);
+                        return null; 
+                    }
+                    const mangaData = await mangaResponse.json();
+
+                    // Mapeia os resultados para o formato que o MangaCard espera
+                    const items = mangaData.results.map(manga => ({
+                        ...manga,
+                        mangaUrl: `#/details/${manga.provider_id}/${manga.content_id}`, // Rota para os detalhes
+                        coverUrl: manga.thumbnail_url_proxy // A API agora deve retornar a URL completa do proxy
+                    }));
+                    
+                    if (items.length > 0) {
+                        return {
+                            id: provider.id,
+                            title: `Populares em ${provider.name}`,
+                            items: items
+                        };
+                    }
+                    return null;
+                });
+
+                // 3. Aguarda todas as buscas e atualiza o estado
+                const resolvedSections = (await Promise.all(sectionsPromises)).filter(Boolean);
+                setSections(resolvedSections);
+
+            } catch (err) {
+                console.error("Erro na página Descobrir:", err);
+                setError("Não foi possível carregar o conteúdo da página de descoberta.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchDiscoverData();
+    }, []);
+
+    if (isLoading) {
+        return <div className="flex h-screen"><div className="m-auto"><Spinner /></div></div>;
     }
-    return response;
-  }
 
-  setCurrentSource = (source) => {
-    this.setState({
-      currentSource: source,
-    });
-  };
-
-  render() {
-    const { t } = this.props; 
-    const items = [];
-    Object.values(this.props.discover).forEach((section) => {
-      if (section.items && section.items.length) {
-        const titleParts = section.title.split(" - ");
-        const sourceName = titleParts[0];
-        const originalSectionTitle = titleParts.length > 1 ? titleParts.slice(1).join(" - ") : ""; // Lida com títulos que podem não ter " - "
-
-        const translatedSourceName = t(`sourceName${sourceName.replace(/\s+/g, '')}`, sourceName);
-        const sectionDisplayTitle = originalSectionTitle 
-          ? `${translatedSourceName} - ${capitalizeFirstLetters(originalSectionTitle)}` 
-          : translatedSourceName;
-
-        items.push(
-          <Fragment
-            key={section.sourceName + section.id + section.title + "-section"}
-          >
-            <Section
-              key={section.id + section.title + "title"}
-              text={sectionDisplayTitle}
-            />
-            <ScrollableCarousel
-              key={section.id + section.title + "-carousel"}
-              expandable={true}
-            >
-              {section.items.map((item, idx) => (
-                <MangaCard
-                  key={`${section.sourceName}-${section.id}-${item.id}-${idx}`}
-                  mangaUrlizer={section.mangaUrlizer}
-                  slug={item.mangaId || item.id} // item.id exists on 0.6
-                  coverUrl={item.image}
-                  mangaTitle={item.title.text || item.title} // item.title.text exists on 0.6
-                  sourceName={section.sourceName}
-                  source={section.source}
-                />
-              ))}
-              {
-                // section.view_more exists on 0.6
-              }
-              {(section.containsMoreItems || section.view_more) &&
-              section.metadata &&
-              section.hasMore ? (
-                <ViewMorePlaceholder
-                  onClickHandler={() => section.viewMoreHandler(section)}
-                  hasMore={section.hasMore}
-                  key={`view-more-${section.sourceName}-${section.id}-${section.items.length}`}
-                />
-              ) : (
-                <EndPlaceholder />
-              )}
-            </ScrollableCarousel>
-          </Fragment>
-        );
-      }
-    });
+    if (error) {
+        return <Container><p className="text-red-500 text-center py-10">{error}</p></Container>;
+    }
 
     return (
-      <Container>
-        {Object.entries(this.props.discover).length ? (
-          <Fragment>
-            <ScrollableCarousel iconSize={4}>
-              <RadioGroup
-                as="div"
-                className="py-2 flex flex-nowrap"
-                value={this.state.currentSource}
-                onChange={this.setCurrentSource}
-              >
-                {this.getSourceNamesAndIcons().map((source) => (
-                  <RadioGroup.Option
-                    as={Fragment}
-                    value={source.name}
-                    key={source.name}
-                  >
-                    {({ checked }) => (
-                      <button
-                        disabled={source.disabled}
-                        className={classNames(
-                          checked
-                            ? "bg-black text-white dark:bg-gray-800 dark:text-white"
-                            : "bg-transparent text-black dark:text-gray-300",
-                          source.disabled
-                            ? "opacity-25"
-                            : checked
-                            ? ""
-                            : "hover:bg-gray-200 dark:hover:bg-gray-700 dark:hover:text-white",
-                          "min-w-max inline-flex items-center justify-center px-3 py-2 mx-2 rounded-md text-md font-medium focus:outline-none"
-                        )}
-                      >
-                        {source.disabled ? (
-                          <SpinIcon className="h-8 h-8 animate-spin"></SpinIcon>
-                        ) : (
-                          <img
-                            src={source.icon}
-                            className="h-8 w-8"
-                            alt={t(`sourceName${source.name.replace(/\s+/g, '')}`, source.name)} // Traduzir alt text
-                          />
-                        )}
-                        <div className="block px-2">{t(`sourceName${source.name.replace(/\s+/g, '')}`, source.name)}</div> {/* Traduzir nome da fonte */}
-                      </button>
-                    )}
-                  </RadioGroup.Option>
-                ))}
-              </RadioGroup>
-            </ScrollableCarousel>
-
-            {items.map((item) =>
-              item.key.includes(this.state.currentSource) ? item : undefined
-            )}
-          </Fragment>
-        ) : (
-          <Spinner />
-        )}
-      </Container>
+        <Container>
+            {sections.map((section) => (
+                <Section
+                    key={section.id}
+                    section={section}
+                />
+            ))}
+        </Container>
     );
-  }
-}
+};
 
-export default withTranslation()(DiscoverClass); // Envolver com HOC
+export default Discover;
