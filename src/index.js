@@ -1,12 +1,14 @@
-import React from "react";
-import ReactDOM from "react-dom";
-import "./style/index.css";
+import React from 'react';
+import { createRoot } from 'react-dom/client'; // Importação atualizada para React 18+
+import './style/index.css';
+import App from './App';
 import './i18n';
-import App from "./App.js";
 
-ReactDOM.render(
+const container = document.getElementById('root');
+const root = createRoot(container); // Cria a raiz usando a nova API
+
+root.render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>,
-  document.getElementById("root")
+  </React.StrictMode>
 );

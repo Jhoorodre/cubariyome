@@ -1,163 +1,92 @@
-import React, { PureComponent } from "react";
-import MangaCard from "../components/MangaCard";
-import Spinner from "../components/Spinner";
-import ScrollableCarousel from "../components/ScrollableCarousel";
-import Section from "../components/Section";
-import Container from "../components/Container";
-import { withTranslation } from 'react-i18next';
+// src/containers/Search.js
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
+import Container from '../components/Container';
+import MangaCard from '../components/MangaCard';
+import Spinner from '../components/Spinner';
+import Section from '../components/Section';
 
-const recommendedSources = ["MangaKatana", "Manga4Life", "Guya"];
+// URL base da sua API Django.
+const API_BASE_URL = '/api/v1';
 
-class SearchClass extends PureComponent {
-  constructor(props) {
-    super(props);
-    this.state = {
-      searching: false,
-    };
-    this.inputRef = React.createRef();
-    this.runningQueries = new Set();
-  }
+const Search = () => {
+    const { t } = useTranslation();
+    const [results, setResults] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [searchPerformed, setSearchPerformed] = useState(false);
+    
+    // Usa o hook do React Router para obter o termo de busca da URL.
+    const location = useLocation();
+    const query = new URLSearchParams(location.search).get('query') || '';
 
-  handleInput = (event) => {
-    if (event.key === "Enter" && event.target.value) {
-      let query = {
-        title: event.target.value,
-      };
-      this.runningQueries.clear();
-      this.props.searchHandler("", {});
-      this.setState(
-        {
-          searching: true,
-        },
-        () => {
-          this.runSearchQuery(query);
-        }
-      );
-    }
-  };
-
-  sourceQueryHelper = (sourceName, source, queryTask) => {
-    this.runningQueries.add(queryTask);
-    let hasMore = false;
-    source
-      .getSearchResults({ ...queryTask.query }, queryTask.metadata)
-      .then((e) => {
-        if (this.runningQueries.has(queryTask) && this.inputRef.current) {
-          let results = (e.results || []).map((manga) => {
-            manga.mangaUrlizer = source.getMangaUrl;
-            manga.slug = manga.mangaId || manga.id;
-            manga.coverUrl = manga.image;
-            manga.mangaTitle = manga.title.text || manga.title;
-            manga.source = source;
-            manga.sourceName = sourceName;
-            return manga;
-          });
-          let previousResults = this.props.searchResults[sourceName];
-          queryTask.metadata = e.metadata;
-          hasMore = queryTask.metadata && results.length;
-          this.props.searchHandler(queryTask.query.title, {
-            ...this.props.searchResults,
-            [sourceName]: [
-              ...(previousResults ? previousResults : []),
-              ...results,
-            ],
-          });
-        }
-      })
-      .finally(() => {
-        if (this.runningQueries.has(queryTask) && this.inputRef.current) {
-          if (hasMore) {
-            this.sourceQueryHelper(sourceName, source, queryTask);
-          } else {
-            this.runningQueries.delete(queryTask);
-            this.setState({
-              searching: this.runningQueries.size ? true : false,
-            });
-          }
-        }
-      });
-  };
-
-  runSearchQuery = (query) => {
-    Object.entries(this.props.sources).forEach(([sourceName, source]) => {
-      const queryTask = {
-        source,
-        query,
-        metadata: undefined,
-      };
-      this.sourceQueryHelper(sourceName, source, queryTask);
-    });
-  };
-
-  componentDidMount = () => {
-    this.props.setPath("Search");
-    setTimeout(() => {
-      if (this.inputRef.current) {
-        this.inputRef.current.focus();
-      }
-    }, 100);
-  };
-
-  render() {
-    const { t } = this.props;
-    const items = [];
-    Object.entries(this.props.searchResults).forEach(([source, results]) => {
-      if (results && results.length) {
-        const count = results.length;
-        const translationKey = 'resultsCount';
-        const translatedText = t(translationKey, { count });
-        console.log(`DEBUG: Source: ${source}, Count: ${count}, Key: ${translationKey}, Translated: ${translatedText}`); // Adicionado para depuração
-        items.push(
-          <Section
-            key={`search-${source}`}
-            text={source}
-            subText={
-              (recommendedSources.includes(source) ? t('recommendedPrefix') : "") +
-              translatedText // Usando a variável depurada
+    useEffect(() => {
+        // A função de busca agora é executada sempre que a 'query' na URL mudar.
+        const performSearch = async () => {
+            if (!query) {
+                setResults([]);
+                setSearchPerformed(false);
+                return;
             }
-          />
-        );
-        items.push(
-          <ScrollableCarousel key={`search-${source}-carousel`} expandable={true}>
-            {results.map((item) => (
-              <MangaCard
-                key={"search-" + source.name + (item.slug)}
-                mangaUrlizer={item.mangaUrlizer}
-                slug={item.slug}
-                coverUrl={item.coverUrl}
-                mangaTitle={item.mangaTitle}
-                sourceName={item.sourceName}
-                source={item.source}
-              />
-            ))}
-          </ScrollableCarousel>
-        );
-      }
-    });
+
+            setIsLoading(true);
+            setSearchPerformed(true);
+            setResults([]); // Limpa resultados antigos
+
+            try {
+                // ÚNICA chamada para a API! O backend faz o trabalho pesado.
+                const response = await fetch(`${API_BASE_URL}/content-discovery/search?query=${encodeURIComponent(query)}&type=SEARCH`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // O backend já nos retorna uma lista de resultados agregados.
+                setResults(data.results || []);
+
+            } catch (error) {
+                console.error("Erro ao buscar na API do backend:", error);
+                // Você pode adicionar um estado de erro para mostrar na UI.
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        performSearch();
+    }, [query]);
 
     return (
-      <Container>
-        <input
-          className="w-full mt-8 px-4 py-4 text-xl sm:text-2xl text-black bg-gray-200 dark:text-white dark:bg-gray-800 rounded-md focus:outline-none shadow-md"
-          ref={this.inputRef}
-          onKeyPress={this.handleInput}
-          type="text"
-          defaultValue={this.props.searchQuery}
-          placeholder={t('searchPlaceholder')}
-        />
-        {items.length ? <Container>{items}</Container> : undefined}
-        {this.state.searching ? (
-          <Spinner />
-        ) : items.length ? undefined : this.props.searchQuery ? (
-          <Section
-            key="results"
-            text={t('noResults')}
-            subText={t('noResultsSubtitle')}
-          />
-        ) : undefined}
-      </Container>
-    );
-  }
-}
+        <Container>
+            {/* O formulário/input de busca principal provavelmente será movido para o Header/Navbar. */}
+            
+            {isLoading && <Spinner />}
 
-export default withTranslation()(SearchClass);
+            {!isLoading && searchPerformed && results.length === 0 && (
+                <Section
+                    text={t('noResults')}
+                    subText={t('noResultsSubtitle')}
+                />
+            )}
+
+            {!isLoading && results.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {results.map((manga, index) => (
+                        <MangaCard
+                            key={`${manga.provider_id}-${manga.content_id}-${index}`}
+                            provider_id={manga.provider_id}
+                            content_id={manga.content_id}
+                            mangaUrl={`#/reader/${manga.provider_id}/${manga.content_id}`}
+                            coverUrl={manga.thumbnail_url_proxy}
+                            mangaTitle={manga.title}
+                            sourceName={manga.provider_id} 
+                        />
+                    ))}
+                </div>
+            )}
+        </Container>
+    );
+};
+
+export default Search;

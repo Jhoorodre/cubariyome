@@ -1,3 +1,4 @@
+// src/containers/Settings.js
 import React, { PureComponent } from "react";
 import Container from "../components/Container";
 import Section from "../components/Section";
@@ -26,12 +27,11 @@ class SettingsClass extends PureComponent {
     });
     this.state = {
       ready: false,
-      hentaiEnabled: localStorage.getItem(HENTAI_KEY),
+      hentaiEnabled: !!localStorage.getItem(HENTAI_KEY),
     };
   }
 
   componentDidMount = () => {
-    this.props.setPath("Settings");
     remoteStorage.on("ready", () => {
       if (this.widgetRef.current) {
         this.widget.attach(this.widgetRef.current.id);
@@ -40,6 +40,11 @@ class SettingsClass extends PureComponent {
         });
       }
     });
+    // Se o widget já estiver conectado, precisamos chamá-lo manualmente.
+    if (remoteStorage.connected && this.widgetRef.current) {
+        this.widget.attach(this.widgetRef.current.id);
+        this.setState({ ready: true });
+    }
   };
 
   hentaiToggle = (state) => {
@@ -96,7 +101,8 @@ class SettingsClass extends PureComponent {
           subText={t('remoteStorageSubtext')}
         />
         <Container className="mt-4 mb-6 text-sm space-y-3">
-          <p className="text-gray-700 dark:text-gray-300 italic">{t('settings.remoteStorage.briefIntroPlusBenefits')}</p>          <p className="text-gray-700 dark:text-gray-300">
+          <p className="text-gray-700 dark:text-gray-300 italic">{t('settings.remoteStorage.briefIntroPlusBenefits')}</p>
+          <p className="text-gray-700 dark:text-gray-300">
             {t('settings.remoteStorage.createAccountPromptShort')}{' '}
             <a 
               href="https://5apps.com/users/sign_up?site=storage" 
@@ -117,4 +123,6 @@ class SettingsClass extends PureComponent {
   }
 }
 
+// O componente de classe é mantido aqui, pois a biblioteca remotestorage-widget
+// funciona bem com o ciclo de vida de classes.
 export default withTranslation()(SettingsClass);

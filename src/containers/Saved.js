@@ -1,74 +1,62 @@
-import React, { PureComponent } from "react";
+// src/containers/Saved.js
+import React, { useState, useEffect, useCallback } from "react";
 import MangaCard from "../components/MangaCard";
 import Container from "../components/Container";
 import Section from "../components/Section";
-import {
-  globalHistoryHandler,
-  purgePreviousCache,
-} from "../utils/remotestorage";
+import { globalHistoryHandler } from "../utils/remotestorage";
 import Spinner from "../components/Spinner";
-import { sourceMap } from "../sources/Sources";
-import { mangaUrlBuilder } from "../utils/compatability";
-import ScrollableCarousel from "../components/ScrollableCarousel";
-import { withTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 
-class SavedClass extends PureComponent {
-  constructor(props) {
-    super(props);
-    this.ref = React.createRef();
-    this.state = {
-      items: [],
-      ready: false,
-    };
-  }
+const Saved = () => {
+  const { t } = useTranslation();
+  const [items, setItems] = useState([]);
+  const [ready, setReady] = useState(false);
 
-  updateItems = () => {
-    return globalHistoryHandler.getAllPinnedSeries().then((items) => {
-      if (this.ref.current) {
-        this.setState({
-          items,
-          ready: true,
-        });
-      }
+  const updateItems = useCallback(() => {
+    globalHistoryHandler.getAllPinnedSeries().then((fetchedItems) => {
+        const mappedItems = fetchedItems.map(item => ({
+          ...item,
+          provider_id: item.source,
+          content_id: item.slug,
+          mangaUrl: `#/reader/${item.source}/${item.slug}`,
+          saved: true
+        }));
+        setItems(mappedItems);
+        setReady(true);
     });
-  };
+  }, []);
 
-  componentDidMount = () => {
-    this.props.setPath("Saved");
-    purgePreviousCache();
-    this.updateItems();
-  };
+  useEffect(() => {
+    updateItems();
+  }, [updateItems]);
 
-  render() {
-    const { t } = this.props;
-    return (
-      <Container>
-        <Section
-          text={t('favorites')}
-          subText={t('savedSubtext')}
-          ref={this.ref}
-        ></Section>
-        {this.state.ready ? (
-          <ScrollableCarousel expandable={true} expanded={true}>
-            {this.state.items.map((e) => (
-              <MangaCard
-                key={`saved-${e.timestamp}-${e.slug}-${e.source}`}
-                mangaUrlizer={mangaUrlBuilder(e.url)}
-                slug={e.slug}
-                coverUrl={e.coverUrl}
-                mangaTitle={e.title}
-                sourceName={e.source}
-                source={sourceMap[e.source]}
-                storageCallback={this.updateItems}
-              ></MangaCard>
-            ))}
-          </ScrollableCarousel>
-        ) : (
-          <Spinner />
-        )}
-      </Container>
-    );
+  if (!ready) {
+    return <Spinner />;
   }
+
+  return (
+    <Container>
+      <Section text={t('favorites')} subText={t('savedSubtext')} />
+      {items.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {items.map((item) => (
+            <MangaCard
+              key={`saved-${item.timestamp}-${item.content_id}-${item.provider_id}`}
+              content_id={item.content_id}
+              provider_id={item.provider_id}
+              coverUrl={item.coverUrl}
+              mangaTitle={item.title}
+              mangaUrl={item.mangaUrl}
+              saved={item.saved}
+              storageCallback={updateItems}
+            />
+          ))}
+        </div>
+      ) : (
+        <Section text={t('emptyFavoritesTitle')} subText={t('emptyFavoritesSubtext')} />
+      )}
+    </Container>
+  );
 }
 
-export default withTranslation()(SavedClass);
+export default Saved;

@@ -1,74 +1,40 @@
-import React, { Fragment, PureComponent } from "react";
-import { Switch, Route, withRouter } from "react-router-dom";
-import Discover from "./containers/Discover.js";
-import Search from "./containers/Search.js";
-import History from "./containers/History.js";
-import Saved from "./containers/Saved.js";
-import Settings from "./containers/Settings.js";
-import PageNotFound from "./containers/PageNotFound.js";
+import React from "react";
+import { Switch, Route } from "react-router-dom";
 
-export const navigation = {
-  Discover: {
-    href: "/",
-    inNav: true,
-    i18nKey: 'discover',
-    component: (app) => (
-      <Discover discover={app.state.discover} setPath={app.setPath} />
-    ),
-  },
-  Search: {
-    href: "/search",
-    inNav: true,
-    i18nKey: 'search',
-    component: (app) => (
-      <Search
-        searchResults={app.state.searchResults}
-        searchQuery={app.state.searchQuery}
-        searchHandler={app.searchHandler}
-        sources={app.sources}
-        setPath={app.setPath}
-      />
-    ),
-  },
-  History: {
-    href: "/history",
-    inNav: true,
-    i18nKey: 'history',
-    component: (app) => <History setPath={app.setPath} />,
-  },
-  Saved: {
-    href: "/saved",
-    inNav: true,
-    i18nKey: 'favorites', // Usando 'favorites' como no translation.json
-    component: (app) => <Saved setPath={app.setPath} />,
-  },
-  Settings: {
-    href: "/settings",
-    inNav: true,
-    i18nKey: 'settings',
-    component: (app) => <Settings setPath={app.setPath} />,
-  },
+// Importa os componentes de página
+import Discover from "./containers/Discover";
+import Search from "./containers/Search";
+import History from "./containers/History";
+import Saved from "./containers/Saved";
+import Settings from "./containers/Settings";
+import Reader from "./containers/Reader";
+import PageNotFound from "./containers/PageNotFound";
+
+const AppRouter = () => {
+  return (
+    <main className="flex-grow">
+      <Switch>
+        <Route path="/" exact component={Discover} />
+        <Route path="/search" component={Search} />
+        <Route path="/history" component={History} />
+        <Route path="/saved" component={Saved} />
+        <Route path="/settings" component={Settings} />
+
+        {/* Rota para o leitor de mangá, recebendo os novos parâmetros */}
+        <Route
+          path="/reader/:provider_id/:content_id/:chapter_id?"
+          component={Reader}
+        />
+
+        {/* Rota para a página de detalhes de um mangá (NOVA SUGESTÃO) */}
+        {/* Você vai precisar de um container `Details.js` para esta rota */}
+        {/* <Route path="/details/:provider_id/:content_id" component={Details} /> */}
+
+        {/* Rota padrão para páginas não encontradas */}
+        <Route component={PageNotFound} />
+      </Switch>
+    </main>
+  );
 };
 
-class Router extends PureComponent {
-  render() {
-    return (
-      <Fragment>
-        <Switch>
-          {Object.values(navigation).map((item) => {
-            return (
-              <Route exact path={item.href} key={item.href}>
-                {item.component(this.props.app)}
-              </Route>
-            );
-          })}
-          <Route>
-            <PageNotFound />
-          </Route>
-        </Switch>
-      </Fragment>
-    );
-  }
-}
-
-export default withRouter(Router);
+export default AppRouter;
