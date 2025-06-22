@@ -1,11 +1,26 @@
+/* =================================
+   SCROLLBAR CUSTOMIZATION
+   ================================= */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.5) transparent;
 }
 
+html, body, #root {
+  min-height: 100vh;
+  height: 100%;
+  overflow-x: hidden;
+  background-color: #1e2633 !important; /* Força fundo escuro, ajuste conforme seu tema */
+}
+
 html {
-  overflow-y: scroll; /* Show scrollbars, bypassing Tailwind */
-  padding-right: -11px;
+  overflow-y: scroll;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: inherit;
 }
 
 ::-webkit-scrollbar {
@@ -39,32 +54,50 @@ html {
   background-color: transparent;
 }
 
+/* =================================
+   REMOTE STORAGE WIDGET
+   ================================= */
 .rs-state-sign-in {
   position: relative !important;
 }
 
 .remote-storage-help-button {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: 24px;
+  right: 24px;
   z-index: 1000;
   border-radius: 50%;
   box-shadow: 0 4px 20px rgba(255, 105, 180, 0.4);
   background: linear-gradient(135deg, #FF69B4, #FF1493);
-  padding: 0.85rem;
+  padding: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  animation: pulse-gentle 3s infinite;
+  animation: pulse-gentle 4s infinite;
+  border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .remote-storage-help-button:hover {
   background: linear-gradient(135deg, #FF1493, #DC143C);
-  transform: scale(1.1);
+  transform: scale(1.05);
   box-shadow: 0 6px 25px rgba(255, 105, 180, 0.6);
   animation: none;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Responsividade para mobile */
+@media (max-width: 640px) {
+  .remote-storage-help-button {
+    bottom: 16px;
+    right: 16px;
+    padding: 0.6rem;
+  }
+  
+  .remote-storage-help-button:hover {
+    transform: scale(1.02);
+  }
 }
 
 @keyframes pulse-gentle {
@@ -122,6 +155,34 @@ html {
   .dark .custom-scrollbar {
     scrollbar-color: #505050 transparent; /* Firefox dark mode */
   }
+}
+
+/* =================================
+   LAYOUT FIXES
+   ================================= */
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* Remover padding/margin indesejado */
+.container {
+  padding-bottom: 0 !important;
+}
+
+/* Garantir que não há espaço em branco na parte inferior */
+main {
+  background-color: inherit;
+}
+
+/* Corrigir altura completa */
+#root {
+  min-height: 100vh;
+  background-color: inherit;
+}
+
+/* Corrigir containers das páginas */
+.sources-container {
+  min-height: calc(100vh - 80px); /* Altura da tela menos a navbar */
 }
 
 @tailwind base;

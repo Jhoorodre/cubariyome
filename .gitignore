@@ -29,3 +29,9 @@ yarn-error.log*
 # Roadmaps
 roadmap_traducao_ptbr.md
 roadmap_traducao_ptbr.txt
+
+# Ignorar toda a pasta do projeto
+/
+
+# Ignorar a subpasta cubari-proxy-br
+/cubari-proxy-br

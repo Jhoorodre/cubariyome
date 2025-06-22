@@ -14,8 +14,15 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+# Import condicional do dj_database_url (só se estiver instalado)
+try:
+    import dj_database_url
+except ImportError:
+    dj_database_url = None
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+# Força a sobreposição de variáveis de ambiente com os valores do .env
+load_dotenv(os.path.join(BASE_DIR, '.env'), override=True)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-if-not-set') # Fornecer um fallback
@@ -23,7 +30,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-if-not
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True' # Default para False se não definido
 
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,.vercel.app').split(',')
 
 
 # Application definition
@@ -42,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Adicionar WhiteNoise para servir estáticos
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # <--- ADICIONE ESTA LINHA
     'django.middleware.common.CommonMiddleware',
@@ -82,6 +90,13 @@ DATABASES = {
     }
 }
 
+# Database para produção (PostgreSQL quando DATABASE_URL estiver definido)
+database_url = os.getenv('DATABASE_URL')
+if database_url and dj_database_url:
+    DATABASES = {
+        'default': dj_database_url.parse(database_url)
+    }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -119,16 +134,30 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Configurações para servir arquivos estáticos em produção
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Django 4.2+ STORAGES configuration
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configuração da URL da API do Suwayomi-Server
-SUWAYOMI_API_URL = os.getenv('SUWAYOMI_API_URL')
-SUWAYOMI_BASE_URL = os.getenv('SUWAYOMI_BASE_URL')
-SUWAYOMI_API_URL_2 = os.getenv('SUWAYOMI_API_URL_2')
-SUWAYOMI_BASE_URL_2 = os.getenv('SUWAYOMI_BASE_URL_2')
+SUWAYOMI_API_URL = os.getenv('SUWAYOMI_API_URL') or ''
+SUWAYOMI_BASE_URL = os.getenv('SUWAYOMI_BASE_URL') or ''
+SUWAYOMI_API_URL_2 = os.getenv('SUWAYOMI_API_URL_2') or ''
+SUWAYOMI_BASE_URL_2 = os.getenv('SUWAYOMI_BASE_URL_2') or ''
 
 # Configurações do Django REST framework (opcional, mas bom para ter)
 REST_FRAMEWORK = {
@@ -140,5 +169,132 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+    "http://localhost:3000",  # Desenvolvimento local
+    "https://cubariyome.vercel.app",  # Frontend em produção
+    "https://cubari-proxy-gi3hzze4i-jhoorodres-projects.vercel.app",  # Deploy atual
+    "https://y-alpha-orcin.vercel.app",  # Domínio personalizado
 ]
+
+# Para desenvolvimento, permitir todas as origens Vercel
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Só em desenvolvimento
+
+# Regex pattern para aceitar subdomínios Vercel
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",  # Qualquer subdomínio .vercel.app
+]
+
+# Permitir cookies em requisições CORS se necessário
+CORS_ALLOW_CREDENTIALS = True
+
+# Headers permitidos
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'cache-control',
+]
+
+# === Configurações de Rate Limiting ===
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = 'default'  # Use Redis em produção
+RATELIMIT_VIEW = 'api.views.rate_limited'
+
+# Cache configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1'),
+    } if os.getenv('REDIS_URL') else {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# Configurações customizadas do Suwayomi
+RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE') or '60')
+SUWAYOMI_TIMEOUT = int(os.getenv('SUWAYOMI_TIMEOUT') or '30')
+
+
+# Configurações de segurança para produção
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+    
+    # Configurações adicionais de segurança
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+
+# Configuração de Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose' if DEBUG else 'simple',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'] if not DEBUG else ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'api': {  # Log específico para nossa API
+            'handlers': ['console', 'file'] if not DEBUG else ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Configurações adicionais para produção
+if os.getenv('DATABASE_URL'):
+    # SSL para PostgreSQL em produção
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require',
+    }
+
+# Timeout para requisições HTTP
+DEFAULT_HTTP_TIMEOUT = int(os.getenv('DEFAULT_HTTP_TIMEOUT') or '30')
+
+# Configurações de email (se necessário no futuro)
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+if not DEBUG:
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@cubari-proxy.com')
+    SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)

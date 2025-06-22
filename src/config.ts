@@ -1,12 +1,32 @@
 /**
- * Este arquivo centraliza as configurações principais da aplicação.
- * Mudar um valor aqui irá refletir em todo o projeto.
+ * Configurações centralizadas da aplicação.
+ * Todas as URLs e constantes importantes devem estar aqui.
  */
 
-// A URL base para o nosso backend/API Gateway (Django).
-// Usar uma variável de ambiente (REACT_APP_API_URL) é a melhor prática.
-// O valor 'fallback' aponta para o proxy local que o Create React App oferece.
-export const API_BASE_URL = process.env.REACT_APP_API_URL || '/api/v1';
+// A URL base da sua API Django.
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
 
-// Adicionando a exportação de SUWAYOMI_SERVER que estava faltando
+// URLs da API
 export const SUWAYOMI_SERVER = API_BASE_URL;
+
+// Configurações de Cache
+export const CACHE_CONFIG = {
+    PROVIDERS_TTL: 5 * 60 * 1000, // 5 minutos
+    MANGA_TTL: 3 * 60 * 1000,     // 3 minutos
+    IMAGES_TTL: 30 * 60 * 1000,   // 30 minutos
+};
+
+// Configurações de UI
+export const UI_CONFIG = {
+    NOTIFICATION_DURATION: 4000,
+    DEBOUNCE_DELAY: 800,
+    INFINITE_SCROLL_THRESHOLD: 200,
+    MAX_HISTORY_ITEMS: 100,
+};
+
+// RemoteStorage
+export const REMOTE_STORAGE_CONFIG = {
+    MODULE_NAME: 'cubari',
+    AUTO_CLEANUP_INTERVAL: 5000,
+    MAX_NOTIFICATION_AGE: 30000,
+};

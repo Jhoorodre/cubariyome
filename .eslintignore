@@ -1,1 +1,5 @@
-/src/sources/*
+# Pasta sources foi removida - tipos movidos para src/types/
+# /src/sources/* (removido)
+
+# Ignorar arquivos de tipos se necessário
+# /src/types/*

@@ -34,12 +34,29 @@ O Cubari Proxy é como um "navegador especial" para mangás que:
 
 ### 🔥 **Fontes Ativas (Atualmente Disponíveis)**
 
+#### 🇧🇷 **Fontes Brasileiras**
+- **Galinha Samurai Scan** - Scanlação brasileira de qualidade
+- **Gekkou Scans** - Diversos títulos em português
+- **Hunters Scan** - Manhwas e mangás populares
+- **Kakusei Project** - Projeto de tradução brasileiro
+- **Leitor de Mangá** - Agregador brasileiro
+- **Kami Sama Explorer** - Fonte brasileira diversificada
+- **Manga Livre** - Uma das maiores fontes brasileiras
+- **One Piece TECA** - Especializada em One Piece
+- **Remangas** - Amplo catálogo em português
+- **Read Mangas** - Fonte brasileira popular
+- **Silence Scan** - Scanlação de alta qualidade
+- **Taiyō** - Manhwas em português brasileiro
+
+#### 🌍 **Fontes Internacionais**
 - **Guya** - Plataforma especializada em mangás de alta qualidade
 - **DankeFursLesen** - Versão alemã do Guya com conteúdo traduzido
 - **MangaDex** - Uma das maiores plataformas de mangá do mundo
 - **WeebCentral** - Fonte focada em mangás populares
 - **MangaKatana** - Ampla variedade de títulos em inglês
 - **AssortedScans** - Scanlations de alta qualidade
+- **MANGA Plus by SHUEISHA** - Fonte oficial da Shueisha
+- **Comick** - Agregador popular internacional
 
 ### 📚 **Fontes Especiais (Modo Adulto)**
 

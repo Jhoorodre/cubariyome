@@ -33,7 +33,7 @@ const RemoteStorageHelp = () => {
         aria-label={t('remoteStorageHelp.buttonTooltip')}
         title={t('remoteStorageHelp.buttonTooltip')}
       >
-        <QuestionMarkCircleIcon className="h-8 w-8 text-white transition-transform duration-300 group-hover:rotate-12" />
+        <QuestionMarkCircleIcon className="h-7 w-7 text-white transition-transform duration-300 group-hover:rotate-12" />
       </button>
 
       <Transition appear show={isOpen} as={Fragment}>

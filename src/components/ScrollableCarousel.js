@@ -1,265 +1,90 @@
-import React, { PureComponent } from "react";
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-} from "@heroicons/react/outline";
-import { classNames } from "../utils/strings";
-import Spinner from "./Spinner";
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+// CORREÇÃO: Voltando para o caminho de importação da v1, que é o que está no seu package.json
+import { ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/outline'; 
+import { classNames } from '../utils/strings';
 
-const SCROLL_THRESHOLD = 20;
-const LOAD_BATCH_COUNT = 6;
+const ScrollableCarousel = ({ children }) => {
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-export default class ScrollableCarousel extends PureComponent {
-  constructor(props) {
-    super(props);
-    this.state = {
-      fullyLeftScrolled: true,
-      fullyRightScrolled: true,
-      isButtonHovered: false,
-      scrolling: false,
-      childrenLength: 0,
-      itemLength: 0,
-      expanded: false,
+  const updateScrollability = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) {
+      const isOverflowing = el.scrollWidth > el.clientWidth;
+      // Adicionado um pequeno buffer de 1px para evitar erros de arredondamento do navegador
+      setCanScrollLeft(isOverflowing && el.scrollLeft > 1);
+      setCanScrollRight(isOverflowing && el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    updateScrollability();
+
+    const resizeObserver = new ResizeObserver(updateScrollability);
+    resizeObserver.observe(el);
+
+    window.addEventListener('resize', updateScrollability);
+    
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateScrollability);
     };
-    // While a shared observer would be preferable, we lose
-    // the virtual DOM context here so we'll instead bind it
-    // per scrollable carousel
-    this.ref = React.createRef();
-    this.componentRef = React.createRef();
-    this.observer = new IntersectionObserver(this.observerCallback);
-  }
+  }, [children, updateScrollability]);
 
-  observerCallback = (entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        this.setState(
-          {
-            itemLength: LOAD_BATCH_COUNT,
-          },
-          this.scrollPositionHandler
-        );
-        this.observer.unobserve(entry.target);
-        delete this.observer;
-      }
-    });
-  };
-
-  scrollPositionHandler = () => {
-    if (this.ref.current) {
-      let fullyLeftScrolled = this.ref.current.scrollLeft < SCROLL_THRESHOLD;
-      let fullyRightScrolled =
-        this.ref.current.scrollLeft + this.ref.current.clientWidth >
-        this.ref.current.scrollWidth - SCROLL_THRESHOLD;
-      if (
-        fullyRightScrolled &&
-        this.state.itemLength < this.state.childrenLength
-      ) {
-        this.setState({
-          itemLength: this.state.itemLength + LOAD_BATCH_COUNT,
-        });
-      } else {
-        this.setState({
-          fullyLeftScrolled,
-          fullyRightScrolled,
-        });
-      }
-    }
-  };
-
-  _scroller = (modifier) => {
-    if (!this.state.scrolling) {
-      this.ref.current.classList.add("overflow-x-hidden");
-      let elementWidth = this.ref.current.lastChild.lastChild.clientWidth;
-      let containerWidth = this.ref.current.clientWidth;
-      let currentPosition = this.ref.current.scrollLeft;
-      // The amount we scroll will be the number of elements that can be displayed
-      // on the screen, while snapping the new position to the nearest element
-      // (which is accounted by the addition subtraction of the leftover scroll amount)
-      let amount =
-        elementWidth * Math.floor(containerWidth / elementWidth) +
-        (elementWidth * Math.ceil(currentPosition / elementWidth) -
-          currentPosition) *
-          modifier;
-      if (amount < elementWidth) {
-        amount = elementWidth;
-      }
-      let steps = 0;
-      let maxSteps = 20;
-      let scroller = () => {
-        // This emulates an ease-in-out function
-        let x = steps / maxSteps;
-        let functor = (x * x) / (2 * (x * x - x) + 1);
-        this.ref.current.scrollLeft =
-          currentPosition + functor * amount * modifier;
-        steps++;
-        if (steps < maxSteps) {
-          window.requestAnimationFrame(scroller);
-        } else {
-          this.ref.current.classList.remove("overflow-x-hidden");
-          this.setState({
-            scrolling: false,
-          });
-        }
-      };
-      window.requestAnimationFrame(scroller);
-      this.setState({
-        scrolling: true,
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const { current } = scrollRef;
+      const scrollAmount = current.clientWidth * 0.8;
+      current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
       });
     }
   };
 
-  scrollLeft = () => {
-    this._scroller(-1);
-  };
-
-  scrollRight = () => {
-    this._scroller(1);
-  };
-
-  componentDidMount = () => {
-    this.observer.observe(this.componentRef.current);
-    if (this.props.expanded) {
-      this.setState({
-        expanded: true,
-      });
-    }
-    window.addEventListener("resize", this.scrollPositionHandler);
-  };
-
-  componentWillUnmount = () => {
-    window.removeEventListener("resize", this.scrollPositionHandler);
-  };
-
-  onMouseEnter = () =>
-    this.setState({
-      isButtonHovered: true,
-    });
-
-  onMouseLeave = () =>
-    this.setState({
-      isButtonHovered: false,
-    });
-
-  onExpandToggle = () => {
-    this.setState({
-      expanded: !this.state.expanded,
-    });
-  };
-
-  componentDidUpdate = (prevProps) => {
-    const currLength = React.Children.toArray(this.props.children).length;
-    const prevLength = React.Children.toArray(prevProps.children).length;
-    if (this.state.childrenLength !== currLength) {
-      this.setState(
-        {
-          childrenLength: currLength,
-        },
-        this.scrollPositionHandler
-      );
-    } else if (currLength !== prevLength) {
-      this.scrollPositionHandler();
-    }
-  };
-
-  render() {
-    const { expanded, fullyLeftScrolled, fullyRightScrolled, isButtonHovered } =
-      this.state;
-    const { iconSize = 8, expandable } = this.props;
-    const children = React.Children.toArray(this.props.children);
-
-    return (
-      <div className="relative w-full h-full" ref={this.componentRef}>
-        <div
-          hidden={fullyLeftScrolled && !isButtonHovered}
-          className={classNames(
-            fullyLeftScrolled || expanded ? "opacity-0" : "opacity-100",
-            "absolute select-none -left-2 top-1/2 transform -translate-y-1/2 z-10 transition-all duration-250"
-          )}
-        >
-          <div
-            className="cursor-pointer sticky bg-gray-900 text-white dark:bg-white dark:text-black rounded-full p-2 shadow-2xl transform scale-95 hover:scale-100 opacity-40 sm:opacity-80 hover:opacity-100 transition-opacity transition-transform duration-250"
-            onClick={this.scrollLeft}
-            onMouseEnter={this.onMouseEnter}
-            onMouseLeave={this.onMouseLeave}
-          >
-            <ArrowLeftIcon
-              className={`rounded-full z-10 p-0 w-${iconSize} h-${iconSize}`}
-              aria-hidden="true"
-            />
-          </div>
-        </div>
-        {this.state.itemLength ? (
-          <div
-            ref={this.ref}
-            className={classNames(
-              expanded
-                ? ""
-                : "static w-full h-full flex overflow-x-auto no-scrollbar select-none",
-              "pb-1 pt-1"
-            )}
-            onScroll={this.scrollPositionHandler}
-          >
-            <div
-              className={classNames(
-                expanded ? "flex-wrap" : "flex-nowrap",
-                "flex mt-1 mb-1"
-              )}
-            >
-              {expanded ? children : children.slice(0, this.state.itemLength)}
-            </div>
-          </div>
-        ) : children.length ? (
-          <Spinner />
-        ) : undefined}
-        <div
-          hidden={fullyRightScrolled && !isButtonHovered}
-          className={classNames(
-            fullyRightScrolled || expanded ? "opacity-0" : "opacity-100",
-            "absolute select-none -right-2 top-1/2 transform -translate-y-1/2 z-10 transition-all duration-250"
-          )}
-        >
-          <div
-            className="cursor-pointer  bg-gray-900 text-white dark:bg-white dark:text-black rounded-full p-2 shadow-2xl transform scale-95 hover:scale-100 opacity-40 sm:opacity-80 hover:opacity-100 transition-opacity transition-transform duration-250"
-            onClick={this.scrollRight}
-            onMouseEnter={this.onMouseEnter}
-            onMouseLeave={this.onMouseLeave}
-          >
-            <ArrowRightIcon
-              className={`rounded-full z-10 p-0 w-${iconSize} h-${iconSize}`}
-              aria-hidden="true"
-            />
-          </div>
-        </div>
-        <div>
-          {expandable && !(fullyLeftScrolled && fullyRightScrolled) ? (
-            <div
-              className={classNames(
-                "w-full flex justify-center",
-                "cursor-pointer text-black dark:text-white",
-                "transform scale-95 hover:scale-100",
-                "opacity-40 sm:opacity-80 hover:opacity-100 transition-opacity transition-transform duration-250"
-              )}
-              onClick={this.onExpandToggle}
-              onMouseEnter={this.onMouseEnter}
-              onMouseLeave={this.onMouseLeave}
-            >
-              {expanded ? (
-                <ChevronUpIcon
-                  className={`rounded-full z-10 p-0 w-${iconSize} h-${iconSize}`}
-                  aria-hidden="true"
-                />
-              ) : (
-                <ChevronDownIcon
-                  className={`rounded-full z-10 p-0 w-${iconSize} h-${iconSize}`}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-          ) : undefined}
-        </div>
+  return (
+    <div className="relative group">
+      <div
+        ref={scrollRef}
+        onScroll={updateScrollability}
+        className="flex space-x-4 overflow-x-auto no-scrollbar py-2"
+      >
+        {children}
       </div>
-    );
-  }
-}
+
+      <button
+        onClick={() => scroll('left')}
+        aria-label="Scroll left"
+        className={classNames(
+          "absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 p-2 bg-white/80 dark:bg-gray-800/80 text-gray-800 dark:text-white rounded-full shadow-md",
+          "opacity-0 group-hover:opacity-100 transition-all duration-300",
+          "hover:bg-white dark:hover:bg-gray-700 focus:outline-none",
+          "disabled:opacity-0 disabled:cursor-not-allowed"
+        )}
+        disabled={!canScrollLeft}
+      >
+        <ArrowLeftIcon className="h-6 w-6" />
+      </button>
+
+      <button
+        onClick={() => scroll('right')}
+        aria-label="Scroll right"
+        className={classNames(
+          "absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 p-2 bg-white/80 dark:bg-gray-800/80 text-gray-800 dark:text-white rounded-full shadow-md",
+          "opacity-0 group-hover:opacity-100 transition-all duration-300",
+          "hover:bg-white dark:hover:bg-gray-700 focus:outline-none",
+          "disabled:opacity-0 disabled:cursor-not-allowed"
+        )}
+        disabled={!canScrollRight}
+      >
+        <ArrowRightIcon className="h-6 w-6" />
+      </button>
+    </div>
+  );
+};
+
+export default ScrollableCarousel;

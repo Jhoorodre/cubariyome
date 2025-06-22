@@ -5,18 +5,28 @@ import { Switch, Route } from "react-router-dom";
 import Discover from "./containers/Discover";
 import Search from "./containers/Search";
 import History from "./containers/History";
+import Sources from "./containers/Sources";
 import Saved from "./containers/Saved";
 import Settings from "./containers/Settings";
 import Reader from "./containers/Reader";
 import PageNotFound from "./containers/PageNotFound";
 
-const AppRouter = () => {
+// Modificado para aceitar scrollableContainerRef como prop
+const AppRouter = ({ scrollableContainerRef }) => {
   return (
-    <main className="flex-grow">
+    <>
       <Switch>
-        <Route path="/" exact component={Discover} />
+        {/* Modificada a rota Discover para usar a prop render e passar a ref */}
+        <Route
+          path="/"
+          exact
+          render={(props) => (
+            <Discover {...props} scrollableContainerRef={scrollableContainerRef} />
+          )}
+        />
         <Route path="/search" component={Search} />
         <Route path="/history" component={History} />
+        <Route path="/sources" component={Sources} />
         <Route path="/saved" component={Saved} />
         <Route path="/settings" component={Settings} />
 
@@ -33,7 +43,7 @@ const AppRouter = () => {
         {/* Rota padrão para páginas não encontradas */}
         <Route component={PageNotFound} />
       </Switch>
-    </main>
+    </>
   );
 };
 

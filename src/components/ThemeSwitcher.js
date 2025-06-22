@@ -1,60 +1,36 @@
-import React, { PureComponent } from "react";
+import React, { useContext, useCallback } from "react";
 import { SunIcon, MoonIcon } from "@heroicons/react/outline";
+import { ThemeContext } from "../context/ThemeContext";
 
-const themes = {
-  dark: {
-    rootClasses: ["dark", "bg-gray-900"],
-  },
-  light: {
-    rootClasses: ["bg-gray-100"],
-  },
-};
-
-export default class ThemeSwitcher extends PureComponent {
-  constructor(props) {
-    super(props);
-    let theme = window.localStorage.getItem("theme");
-    if (!theme) {
-      window.localStorage.setItem("theme", "dark");
-    }
-    this.state = {
-      theme,
-    };
+const ThemeSwitcher = React.memo(() => {
+  const themeContext = useContext(ThemeContext);
+  
+  if (!themeContext) {
+    throw new Error('ThemeSwitcher deve ser usado dentro de um ThemeContext.Provider');
   }
+  
+  const { theme, setTheme } = themeContext;
 
-  setTheme = (theme) => {
-    window.localStorage.setItem("theme", theme);
-    if (document.body.classList.length) {
-      document.body.className = "transition-colors duration-300";
-    }
-    document.body.classList.add(...themes[theme].rootClasses);
-    this.setState({
-      theme,
-    });
-  };
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  }, [theme, setTheme]);
 
-  componentDidMount = () => {
-    this.setTheme(window.localStorage.getItem("theme"));
-  };
+  return (
+    <button
+      className="p-1 rounded-full bg-transparent focus:outline-none text-black hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white mr-4 transition-colors duration-200"
+      onClick={toggleTheme}
+      aria-label={`Mudar para tema ${theme === "dark" ? "claro" : "escuro"}`}
+      title={`Tema atual: ${theme === "dark" ? "Escuro" : "Claro"}`}
+    >
+      {theme === "dark" ? (
+        <SunIcon className="h-6 w-6" />
+      ) : (
+        <MoonIcon className="h-6 w-6" />
+      )}
+    </button>
+  );
+});
 
-  render() {
-    return (
-      <button
-        className="p-1 rounded-full bg-transparent focus:outline-none text-black hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white mr-4"
-        onClick={() => {
-          if (this.state.theme === "dark") {
-            this.setTheme("light");
-          } else {
-            this.setTheme("dark");
-          }
-        }}
-      >
-        {this.state.theme === "dark" ? (
-          <SunIcon className="h-6 w-6" />
-        ) : (
-          <MoonIcon className="h-6 w-6" />
-        )}
-      </button>
-    );
-  }
-}
+ThemeSwitcher.displayName = 'ThemeSwitcher';
+
+export default ThemeSwitcher;

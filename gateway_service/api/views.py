@@ -1,10 +1,13 @@
 import requests
 from urllib.parse import urljoin
 from django.conf import settings
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, JsonResponse
+from django_ratelimit.decorators import ratelimit
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.views import APIView
+from .api_service import execute_suwayomi_query
 
 # --- Função Auxiliar ---
 def _make_graphql_request(query, variables=None, timeout=30):
@@ -44,6 +47,7 @@ def _make_graphql_request(query, variables=None, timeout=30):
 
 # --- Views da API ---
 
+@ratelimit(key='ip', rate=f'{settings.RATE_LIMIT_PER_MINUTE}/m', method='ALL', block=True)
 @api_view(['GET'])
 def status_check(request):
     return Response({"status": "ok", "message": "API Gateway está funcionando!"})
@@ -65,6 +69,17 @@ def search_content(request):
     provider_id = request.query_params.get('provider_id')
     search_type = request.query_params.get('type', 'SEARCH').upper()
     query_term = request.query_params.get('query')
+    page = int(request.query_params.get('page', 1))
+    # Novo: Aceita filtros customizados como JSON serializado
+    import json
+    filters_json = request.query_params.get('filters')
+    filters_dict = None
+    if filters_json:
+        try:
+            filters_dict = json.loads(filters_json)
+        except Exception as e:
+            return Response({"error": "Formato inválido para o parâmetro 'filters' (deve ser JSON serializado).", "details": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     if not provider_id:
         return Response({"error": "Parâmetro 'provider_id' é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -72,17 +87,48 @@ def search_content(request):
     data = None # Inicializa data como None
 
     if search_type == 'SEARCH':
-        if not query_term:
-            return Response({"error": "Parâmetro 'query' é obrigatório para o tipo 'SEARCH'."}, status=status.HTTP_400_BAD_REQUEST)
-        graphql_query = "query SearchManga($query: String!, $sourceId: LongString) { mangas(filter: {sourceId: {equalTo: $sourceId}, title: {like: $query}}) { nodes { id, title, thumbnailUrl, sourceId }, pageInfo { hasNextPage } } }"
-        variables = {"query": f"%{query_term}%", "sourceId": provider_id}
-        data, error_response = _make_graphql_request(graphql_query, variables, timeout=60)
+        if not query_term and not filters_dict:
+            return Response({"error": "Parâmetro 'query' ou 'filters' é obrigatório para o tipo 'SEARCH'."}, status=status.HTTP_400_BAD_REQUEST)
+        graphql_mutation = """
+        fragment MANGA_BASE_FIELDS on MangaType {
+            id
+            title
+            thumbnailUrl
+            thumbnailUrlLastFetched
+            inLibrary
+            initialized
+            sourceId
+            __typename
+        }
+        mutation GET_SOURCE_MANGAS_FETCH($input: FetchSourceMangaInput!) {
+            fetchSourceManga(input: $input) {
+                hasNextPage
+                mangas {
+                    ...MANGA_BASE_FIELDS
+                    __typename
+                }
+                __typename
+            }
+        }
+        """
+        # Novo: repassa os filtros customizados se existirem
+        input_payload = {
+            "type": "SEARCH",
+            "source": provider_id,
+            "page": page
+        }
+        if query_term:
+            input_payload["query"] = query_term
+        if filters_dict:
+            input_payload["filters"] = filters_dict
+        variables = {"input": input_payload}
+        data, error_response = _make_graphql_request(graphql_mutation, variables, timeout=60)
         if error_response: return error_response
-        if data is None: # Verificação de data
+        if data is None:
             return Response({"error": "Não foi possível obter dados da busca na API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
-        results_data = data.get("data", {}).get("mangas", {})
-        mangas_list = results_data.get("nodes", [])
-        has_more = results_data.get("pageInfo", {}).get("hasNextPage", False)
+        results_data = data.get("data", {}).get("fetchSourceManga", {})
+        mangas_list = results_data.get("mangas", [])
+        has_more = results_data.get("hasNextPage", False)
     elif search_type == 'POPULAR':
         page = int(request.query_params.get('page', 1))
         graphql_mutation = "mutation FetchSourceManga($input: FetchSourceMangaInput!) { fetchSourceManga(input: $input) { hasNextPage, mangas { id, title, thumbnailUrl, sourceId } } }"
@@ -94,8 +140,19 @@ def search_content(request):
         results_data = data.get("data", {}).get("fetchSourceManga", {})
         mangas_list = results_data.get("mangas", [])
         has_more = results_data.get("hasNextPage", False)
+    elif search_type == 'LATEST':
+        page = int(request.query_params.get('page', 1))
+        graphql_mutation = "mutation FetchSourceManga($input: FetchSourceMangaInput!) { fetchSourceManga(input: $input) { hasNextPage, mangas { id, title, thumbnailUrl, sourceId } } }"
+        variables = {"input": {"type": "LATEST", "source": provider_id, "page": page}}
+        data, error_response = _make_graphql_request(graphql_mutation, variables, timeout=60)
+        if error_response: return error_response
+        if data is None: # Verificação de data
+            return Response({"error": "Não foi possível obter dados de latest na API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
+        results_data = data.get("data", {}).get("fetchSourceManga", {})
+        mangas_list = results_data.get("mangas", [])
+        has_more = results_data.get("hasNextPage", False)
     else:
-        return Response({"error": f"Tipo de busca inválido: '{search_type}'. Use 'POPULAR' ou 'SEARCH'."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": f"Tipo de busca inválido: '{search_type}'. Use 'POPULAR', 'LATEST' ou 'SEARCH'."}, status=status.HTTP_400_BAD_REQUEST)
     
     formatted_results = [{"provider_id": item.get("sourceId"),"content_id": str(item.get("id")),"title": item.get("title"),"thumbnail_url_proxy": f"/api/v1/image-proxy/?url={item.get('thumbnailUrl')}" if item.get("thumbnailUrl") else None} for item in mangas_list]
     return Response({"results": formatted_results, "has_more": has_more})
@@ -234,3 +291,58 @@ def image_proxy(request):
     except requests.exceptions.RequestException as e:
         print(f"Falha na requisição da imagem externa ({full_image_url}): {e}")
         return Response({"error": f"Falha na requisição da imagem externa ({original_url}): {e}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+GET_SOURCE_BROWSE_QUERY = """
+    query GET_SOURCE_BROWSE($id: LongString!) {
+      source(id: $id) {
+        id
+        name
+        filters {
+          ... on GroupFilter {
+            type: __typename
+            name
+            filters {
+              ... on CheckBoxFilter {
+                type: __typename
+                name
+              }
+              ... on SelectFilter {
+                 type: __typename
+                 name
+                 values
+              }
+              # Adicionar outros tipos de filtro conforme necessário
+            }
+          }
+          # Adicionar outros tipos de filtro de nível superior se existirem
+        }
+      }
+    }
+"""
+
+class SourceFiltersView(APIView):
+    """
+    View para buscar os filtros de uma fonte específica no Suwayomi.
+    """
+    def get(self, request, *args, **kwargs):
+        provider_id = request.query_params.get('provider_id')
+
+        if not provider_id:
+            return JsonResponse({'error': 'O parâmetro provider_id é obrigatório.'}, status=400)
+
+        variables = {'id': provider_id}
+
+        try:
+            suwayomi_data = execute_suwayomi_query(
+                query=GET_SOURCE_BROWSE_QUERY,
+                variables=variables
+            )
+
+            if suwayomi_data.get('errors'):
+                 return JsonResponse({'error': 'Erro retornado pela API Suwayomi', 'details': suwayomi_data['errors']}, status=502)
+
+            source_data = suwayomi_data.get('data', {}).get('source', {})
+            return JsonResponse(source_data)
+
+        except Exception as e:
+            return JsonResponse({'error': f'Erro interno no servidor: {str(e)}'}, status=500)

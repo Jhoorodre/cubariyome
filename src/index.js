@@ -3,12 +3,15 @@ import { createRoot } from 'react-dom/client'; // Importação atualizada para R
 import './style/index.css';
 import App from './App';
 import './i18n';
+import { ProviderContextProvider } from './context/ProviderContext';
 
 const container = document.getElementById('root');
 const root = createRoot(container); // Cria a raiz usando a nova API
 
 root.render(
   <React.StrictMode>
-    <App />
+    <ProviderContextProvider>
+      <App />
+    </ProviderContextProvider>
   </React.StrictMode>
 );

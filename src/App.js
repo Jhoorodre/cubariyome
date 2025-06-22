@@ -1,45 +1,60 @@
 // src/App.js
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import preval from 'preval.macro';
-import { HashRouter } from 'react-router-dom'; // PASSO 1: Importar o HashRouter
-import Router from './Router';
+import { HashRouter } from 'react-router-dom';
+import Layout from './components/Layout';
+import InfoModal from './components/InfoModal';
+import WelcomeModal from './components/WelcomeModal';
+import RemoteStorageHelp from './components/RemoteStorageHelp';
+import './i18n';
 import { ThemeContext } from './context/ThemeContext';
 import { RemoteStorageContext } from './context/RemoteStorageContext';
-import rs from './utils/remotestorage';
-import Layout from './components/Layout'; // Importa o novo Layout
-import './i18n'; // Garante que a configuração de internacionalização seja carregada
+import { LanguageFilterProvider } from './context/LanguageFilterContext';
+import { remoteStorage } from './utils/remotestorage';
 
 function App() {
-  const { i18n } = useTranslation();
-  const [theme, setTheme] = useState(localStorage.theme || 'dark');
-  const [isStorageConnected, setStorageConnected] = useState(false);
-  const buildTimestamp = preval`module.exports = new Date().getTime();`;
+  // Gerenciamento de tema otimizado
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return savedTheme || (prefersDark ? 'dark' : 'light');
+  });
 
+  // Aplicar tema ao DOM
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.theme = theme;
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Estado de conexão RemoteStorage
+  const [rsConnected, setRsConnected] = useState(remoteStorage.connected);
+
   useEffect(() => {
-    rs.on('connected', () => setStorageConnected(true));
-    rs.on('disconnected', () => setStorageConnected(false));
+    const handleConnect = () => setRsConnected(true);
+    const handleDisconnect = () => setRsConnected(false);
+
+    remoteStorage.on('connected', handleConnect);
+    remoteStorage.on('disconnected', handleDisconnect);
+
+    return () => {
+      remoteStorage.removeEventListener('connected', handleConnect);
+      remoteStorage.removeEventListener('disconnected', handleDisconnect);
+    };
   }, []);
 
-  return (
-    // PASSO 2: Envolver a aplicação com o HashRouter
+  const themeValue = { theme, setTheme };
+  const remoteStorageValue = { connected: rsConnected };  return (
     <HashRouter>
-        <ThemeContext.Provider value={{ theme, setTheme }}>
-          <RemoteStorageContext.Provider value={{ rs, isStorageConnected }}>
-            <div className="bg-gray-100 dark:bg-gray-800 dark:text-white min-h-screen">
-              <Layout />
-            </div>
-          </RemoteStorageContext.Provider>
-        </ThemeContext.Provider>
+      <ThemeContext.Provider value={themeValue}>
+        <RemoteStorageContext.Provider value={remoteStorageValue}>
+          <LanguageFilterProvider>
+            <Layout />
+            <RemoteStorageHelp />
+            <WelcomeModal />
+          </LanguageFilterProvider>
+        </RemoteStorageContext.Provider>
+      </ThemeContext.Provider>
     </HashRouter>
   );
 }
