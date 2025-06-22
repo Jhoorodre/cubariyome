@@ -88,7 +88,7 @@ class InfoModalClass extends PureComponent {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <div className="text-black dark:text-white inline-block bg-white dark:bg-gray-800 w-full max-w-2xl p-6 overflow-hidden text-left align-middle transition-all transform shadow-xl rounded-2xl border border-gray-200 dark:border-gray-700">
+                <div className="text-black dark:text-white bg-white dark:bg-gray-800 w-auto max-w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl p-6 overflow-hidden text-left transition-all transform shadow-xl rounded-2xl border border-gray-200 dark:border-gray-700">
                   {/* Header do Modal */}
                   <div className="flex items-center justify-between mb-6">
                     <Dialog.Title className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -154,7 +154,7 @@ class InfoModalClass extends PureComponent {
                       </div>
                     </div>
                   </div>                  {/* Footer do Modal */}
-                  <div className="mt-8 flex justify-end space-x-3">
+                  <div className="mt-8 flex flex-wrap justify-center sm:justify-end gap-3">
                     <a
                       href="https://cubari.moe/"
                       target="_blank"

@@ -33,3 +33,15 @@ build/
 
 # Railway
 .railway/
+
+# Ambiente virtual Python
+venv/
+
+# Arquivo de ambiente principal
+.env
+
+# Cobertura de testes
+.coverage
+
+# Cache do mypy
+.mypy_cache/
