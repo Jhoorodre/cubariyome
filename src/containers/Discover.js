@@ -21,7 +21,10 @@ const Discover = ({ scrollableContainerRef }) => {
     
     // O useDiscoverData e finalProvidersForDisplay continuam como antes para obter a lista de fontes
     // (O código foi omitido por ser complexo, mas sua lógica existente está correta)
-    const finalProvidersForDisplay = allApiProviders.filter(p => enabledProviderIdsOrder.includes(p.id));
+    // const finalProvidersForDisplay = allApiProviders.filter(p => enabledProviderIdsOrder.includes(p.id)); // LINHA ORIGINAL
+    const finalProvidersForDisplay = enabledProviderIdsOrder
+        .map(providerId => allApiProviders.find(provider => provider.id === providerId))
+        .filter(Boolean); // CORREÇÃO: Garante a ordem baseada em enabledProviderIdsOrder
 
     const [currentProvider, setCurrentProvider] = useState(null);
     const [searchType, setSearchType] = useState('POPULAR');
@@ -221,6 +224,7 @@ const Discover = ({ scrollableContainerRef }) => {
                 }}
                 searchQuery={localFilterQuery}
                 onSearchQueryChange={setLocalFilterQuery}
+                onSearch={handleApiSearch} // <-- ADICIONADA A PROP onSearch
                 isSearching={isLoading}
                 // Filtros desativados temporariamente
                 // onCloseInlineSearch={() => setShowFilterPanel(false)}

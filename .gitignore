@@ -13,6 +13,8 @@
 
 # misc
 .DS_Store
+Thumbs.db
+.env
 .env.local
 .env.development.local
 .env.test.local
@@ -30,8 +32,14 @@ yarn-error.log*
 roadmap_traducao_ptbr.md
 roadmap_traducao_ptbr.txt
 
-# Ignorar toda a pasta do projeto
-/
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
 
-# Ignorar a subpasta cubari-proxy-br
-/cubari-proxy-br
+# Django
+gateway_service/db.sqlite3
+gateway_service/logs/
+staticfiles/
+media/
