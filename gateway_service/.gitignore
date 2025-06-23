@@ -45,3 +45,4 @@ venv/
 
 # Cache do mypy
 .mypy_cache/
+

@@ -7,43 +7,43 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from .api_service import execute_suwayomi_query
+from .api_service import execute_externalprovider_query # Assumindo que api_service.py também será atualizado
 
 # --- Função Auxiliar ---
 def _make_graphql_request(query, variables=None, timeout=30):
-    suwayomi_url = settings.SUWAYOMI_API_URL
-    suwayomi_url_2 = getattr(settings, 'SUWAYOMI_API_URL_2', None)
+    external_provider_url = settings.EXTERNAL_PROVIDER_API_URL
+    external_provider_url_2 = getattr(settings, 'EXTERNAL_PROVIDER_API_URL_2', None)
     json_payload = {'query': query, 'variables': variables or {}}
     try:
-        response = requests.post(suwayomi_url, json=json_payload, timeout=timeout)
+        response = requests.post(external_provider_url, json=json_payload, timeout=timeout)
         response.raise_for_status()
         data = response.json()
-        if 'errors' in data and suwayomi_url_2:
+        if 'errors' in data and external_provider_url_2:
             # Se a resposta da primeira URL tem erro, tenta a segunda
-            response2 = requests.post(suwayomi_url_2, json=json_payload, timeout=timeout)
+            response2 = requests.post(external_provider_url_2, json=json_payload, timeout=timeout)
             response2.raise_for_status()
             data2 = response2.json()
             if 'errors' in data2:
-                return None, Response({"error": "Erro nas duas APIs GraphQL do Suwayomi.", "details": [data['errors'], data2['errors']]}, status=status.HTTP_502_BAD_GATEWAY)
+                return None, Response({"error": "Erro nas duas APIs GraphQL do ExternalProvider.", "details": [data['errors'], data2['errors']]}, status=status.HTTP_502_BAD_GATEWAY)
             return data2, None
         if 'errors' in data:
-            return None, Response({"error": "Erro na resposta da API GraphQL do Suwayomi.", "details": data['errors']}, status=status.HTTP_502_BAD_GATEWAY)
+            return None, Response({"error": "Erro na resposta da API GraphQL do ExternalProvider.", "details": data['errors']}, status=status.HTTP_502_BAD_GATEWAY)
         return data, None
     except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
         # Se a primeira URL falhar, tenta a segunda
-        if suwayomi_url_2:
+        if external_provider_url_2:
             try:
-                response2 = requests.post(suwayomi_url_2, json=json_payload, timeout=timeout)
+                response2 = requests.post(external_provider_url_2, json=json_payload, timeout=timeout)
                 response2.raise_for_status()
                 data2 = response2.json()
                 if 'errors' in data2:
-                    return None, Response({"error": "Erro na segunda API GraphQL do Suwayomi.", "details": data2['errors']}, status=status.HTTP_502_BAD_GATEWAY)
+                    return None, Response({"error": "Erro na segunda API GraphQL do ExternalProvider.", "details": data2['errors']}, status=status.HTTP_502_BAD_GATEWAY)
                 return data2, None
             except Exception as e2:
-                return None, Response({"error": "Falha ao comunicar com ambas as APIs do Suwayomi.", "details": [str(e), str(e2)]}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        return None, Response({"error": "Falha ao comunicar com o Suwayomi-Server.", "details": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                return None, Response({"error": "Falha ao comunicar com ambas as APIs do ExternalProvider.", "details": [str(e), str(e2)]}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return None, Response({"error": "Falha ao comunicar com o ExternalProvider-Server.", "details": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except ValueError as e:
-        return None, Response({"error": "Resposta inválida do Suwayomi-Server (formato não JSON).", "details": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        return None, Response({"error": "Resposta inválida do ExternalProvider-Server (formato não JSON).", "details": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
 
 # --- Views da API ---
 
@@ -59,7 +59,7 @@ def list_content_providers(request):
     if error_response: return error_response
     # Adicionando verificação se data é None antes de prosseguir
     if data is None:
-        return Response({"error": "Não foi possível obter dados da API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"error": "Não foi possível obter dados da API ExternalProvider."}, status=status.HTTP_502_BAD_GATEWAY)
     providers_list = data.get("data", {}).get("sources", {}).get("nodes", [])
     formatted_providers = [{"id": p.get("id"),"name": p.get("name"),"language": p.get("lang"),"icon_url_proxy": f"/api/v1/image-proxy/?url={p.get('iconUrl')}" if p.get("iconUrl") else None,"is_nsfw": p.get("isNsfw")} for p in providers_list]
     return Response(formatted_providers)
@@ -125,7 +125,7 @@ def search_content(request):
         data, error_response = _make_graphql_request(graphql_mutation, variables, timeout=60)
         if error_response: return error_response
         if data is None:
-            return Response({"error": "Não foi possível obter dados da busca na API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"error": "Não foi possível obter dados da busca na API ExternalProvider."}, status=status.HTTP_502_BAD_GATEWAY)
         results_data = data.get("data", {}).get("fetchSourceManga", {})
         mangas_list = results_data.get("mangas", [])
         has_more = results_data.get("hasNextPage", False)
@@ -136,7 +136,7 @@ def search_content(request):
         data, error_response = _make_graphql_request(graphql_mutation, variables, timeout=60)
         if error_response: return error_response
         if data is None: # Verificação de data
-            return Response({"error": "Não foi possível obter dados de populares na API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"error": "Não foi possível obter dados de populares na API ExternalProvider."}, status=status.HTTP_502_BAD_GATEWAY)
         results_data = data.get("data", {}).get("fetchSourceManga", {})
         mangas_list = results_data.get("mangas", [])
         has_more = results_data.get("hasNextPage", False)
@@ -147,7 +147,7 @@ def search_content(request):
         data, error_response = _make_graphql_request(graphql_mutation, variables, timeout=60)
         if error_response: return error_response
         if data is None: # Verificação de data
-            return Response({"error": "Não foi possível obter dados de latest na API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"error": "Não foi possível obter dados de latest na API ExternalProvider."}, status=status.HTTP_502_BAD_GATEWAY)
         results_data = data.get("data", {}).get("fetchSourceManga", {})
         mangas_list = results_data.get("mangas", [])
         has_more = results_data.get("hasNextPage", False)
@@ -175,7 +175,7 @@ def get_manga_details(request, provider_id, content_id):
     
     # Adicionando a verificação para details_data como sugerido anteriormente para robustez
     if details_data is None:
-        return Response({"error": "Não foi possível obter dados de detalhes do mangá da API Suwayomi (details_data is None)."}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"error": "Não foi possível obter dados de detalhes do mangá da API ExternalProvider (details_data is None)."}, status=status.HTTP_502_BAD_GATEWAY)
         
     manga_details = details_data.get("data", {}).get("manga")
     if not manga_details:
@@ -244,12 +244,12 @@ def get_chapter_pages(request, provider_id, content_id, chapter_id):
     data, error_response = _make_graphql_request(graphql_mutation, variables, timeout=90)
     if error_response: return error_response
     if data is None: # Verificação de data
-        return Response({"error": "Não foi possível obter dados das páginas do capítulo na API Suwayomi."}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"error": "Não foi possível obter dados das páginas do capítulo na API ExternalProvider."}, status=status.HTTP_502_BAD_GATEWAY)
     
     pages_data = data.get("data", {}).get("fetchChapterPages", {})
     # A verificação de pages_data e "pages" in pages_data já estava boa
     if pages_data is None or not isinstance(pages_data, dict) or "pages" not in pages_data or pages_data.get("pages") is None:
-        return Response({"error": f"Páginas para o capítulo '{chapter_id}' não encontradas ou resposta inválida do Suwayomi."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": f"Páginas para o capítulo '{chapter_id}' não encontradas ou resposta inválida do ExternalProvider."}, status=status.HTTP_404_NOT_FOUND)
         
     page_urls = pages_data.get("pages", [])
     if page_urls is None: page_urls = [] # Segurança adicional
@@ -275,10 +275,10 @@ def image_proxy(request):
     if not original_url:
         return Response({"error": "Parâmetro 'url' não fornecido."}, status=status.HTTP_400_BAD_REQUEST)
     if original_url.startswith('/'):
-        suwayomi_base_url = settings.SUWAYOMI_BASE_URL
-        if not suwayomi_base_url:
-             return Response({"error": "SUWAYOMI_BASE_URL não está configurada."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        full_image_url = urljoin(suwayomi_base_url, original_url)
+        external_provider_base_url = settings.EXTERNAL_PROVIDER_BASE_URL
+        if not external_provider_base_url:
+             return Response({"error": "EXTERNAL_PROVIDER_BASE_URL não está configurada."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        full_image_url = urljoin(external_provider_base_url, original_url)
     else:
         full_image_url = original_url
     try:
@@ -322,7 +322,7 @@ GET_SOURCE_BROWSE_QUERY = """
 
 class SourceFiltersView(APIView):
     """
-    View para buscar os filtros de uma fonte específica no Suwayomi.
+    View para buscar os filtros de uma fonte específica no ExternalProvider.
     """
     def get(self, request, *args, **kwargs):
         provider_id = request.query_params.get('provider_id')
@@ -333,15 +333,15 @@ class SourceFiltersView(APIView):
         variables = {'id': provider_id}
 
         try:
-            suwayomi_data = execute_suwayomi_query(
+            external_provider_data = execute_externalprovider_query(
                 query=GET_SOURCE_BROWSE_QUERY,
                 variables=variables
             )
 
-            if suwayomi_data.get('errors'):
-                 return JsonResponse({'error': 'Erro retornado pela API Suwayomi', 'details': suwayomi_data['errors']}, status=502)
+            if external_provider_data.get('errors'):
+                 return JsonResponse({'error': 'Erro retornado pela API ExternalProvider', 'details': external_provider_data['errors']}, status=502)
 
-            source_data = suwayomi_data.get('data', {}).get('source', {})
+            source_data = external_provider_data.get('data', {}).get('source', {})
             return JsonResponse(source_data)
 
         except Exception as e:

@@ -153,11 +153,11 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Configuração da URL da API do Suwayomi-Server
-SUWAYOMI_API_URL = os.getenv('SUWAYOMI_API_URL') or ''
-SUWAYOMI_BASE_URL = os.getenv('SUWAYOMI_BASE_URL') or ''
-SUWAYOMI_API_URL_2 = os.getenv('SUWAYOMI_API_URL_2') or ''
-SUWAYOMI_BASE_URL_2 = os.getenv('SUWAYOMI_BASE_URL_2') or ''
+# Configuração da URL da API do ExternalProvider-Server
+EXTERNAL_PROVIDER_API_URL = os.getenv('EXTERNAL_PROVIDER_API_URL') or ''
+EXTERNAL_PROVIDER_BASE_URL = os.getenv('EXTERNAL_PROVIDER_BASE_URL') or ''
+EXTERNAL_PROVIDER_API_URL_2 = os.getenv('EXTERNAL_PROVIDER_API_URL_2') or ''
+EXTERNAL_PROVIDER_BASE_URL_2 = os.getenv('EXTERNAL_PROVIDER_BASE_URL_2') or ''
 
 # Configurações do Django REST framework (opcional, mas bom para ter)
 REST_FRAMEWORK = {
@@ -168,20 +168,17 @@ REST_FRAMEWORK = {
     ]
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Desenvolvimento local
-    "https://cubariyome.vercel.app",  # Frontend em produção
-    "https://cubari-proxy-gi3hzze4i-jhoorodres-projects.vercel.app",  # Deploy atual
-    "https://y-alpha-orcin.vercel.app",  # Domínio personalizado
-]
+# Carrega a string de origens permitidas do .env
+cors_origins_csv = os.getenv('DJANGO_CORS_ALLOWED_ORIGINS_CSV', '')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_csv.split(',') if origin.strip()]
 
-# Para desenvolvimento, permitir todas as origens Vercel
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Só em desenvolvimento
-
-# Regex pattern para aceitar subdomínios Vercel
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.vercel\.app$",  # Qualquer subdomínio .vercel.app
-]
+# Fallback para desenvolvimento local se DJANGO_CORS_ALLOWED_ORIGINS_CSV não estiver definido ou estiver vazio
+if not CORS_ALLOWED_ORIGINS and DEBUG:
+    CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]
+    print("AVISO: DJANGO_CORS_ALLOWED_ORIGINS_CSV não definido ou vazio no .env. Usando fallback: [\"http://localhost:3000\"]")
+elif not CORS_ALLOWED_ORIGINS and not DEBUG:
+    print("ERRO: DJANGO_CORS_ALLOWED_ORIGINS_CSV não definido ou vazio no .env e DEBUG é False. Nenhuma origem CORS será permitida.")
+    # Em um cenário de produção real, você pode querer lançar um erro ou ter uma lista padrão mais restrita.
 
 # Permitir cookies em requisições CORS se necessário
 CORS_ALLOW_CREDENTIALS = True
@@ -216,9 +213,9 @@ CACHES = {
     }
 }
 
-# Configurações customizadas do Suwayomi
+# Configurações customizadas do ExternalProvider
 RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE') or '60')
-SUWAYOMI_TIMEOUT = int(os.getenv('SUWAYOMI_TIMEOUT') or '30')
+EXTERNAL_PROVIDER_TIMEOUT = int(os.getenv('EXTERNAL_PROVIDER_TIMEOUT') or '30')
 
 
 # Configurações de segurança para produção
