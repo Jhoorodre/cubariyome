@@ -1,22 +1,23 @@
 {
   "version": 2,
-  "headers": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "*" },        { 
-          "key": "Content-Security-Policy", 
-          "value": "script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.5apps.com https://*.vercel.app ws://localhost:* http://127.0.0.1:* http://localhost:*; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';"
-        }
-      ]
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://cubariyome-backend.vercel.app/api/$1"
+      "src": "/api/(.*)",
+      "destination": "https://moe-server-7i445qvya-jhoorodres-projects.vercel.app/api/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
     }
   ]
 }
