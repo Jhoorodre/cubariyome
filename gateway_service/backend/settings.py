@@ -10,9 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
-from pathlib import Path
 import os
-from dotenv import load_dotenv
+from pathlib import Path
+from decouple import config # Adicionado
 
 # Import condicional do dj_database_url (só se estiver instalado)
 try:
@@ -21,14 +21,12 @@ except ImportError:
     dj_database_url = None
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-# Força a sobreposição de variáveis de ambiente com os valores do .env
-load_dotenv(os.path.join(BASE_DIR, '.env'), override=True)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-if-not-set') # Fornecer um fallback
+SECRET_KEY = config('DJANGO_SECRET_KEY', default='uma_chave_secreta_local_padrao_deve_ser_forte') # Modificado
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True' # Default para False se não definido
+DEBUG = config('DJANGO_DEBUG', default=True, cast=bool) # Modificado
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,.vercel.app').split(',')
 
@@ -83,20 +81,32 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# Configuração para produção (Vercel) e desenvolvimento local.
+# Se a variável de ambiente DATABASE_URL estiver definida (em produção no Vercel),
+# usaremos o PostgreSQL. Caso contrário, usaremos SQLite para desenvolvimento local.
+DATABASE_URL_FROM_ENV = config('DATABASE_URL', default=None) # Modificado para usar config
 
-# Database para produção (PostgreSQL quando DATABASE_URL estiver definido)
-database_url = os.getenv('DATABASE_URL')
-if database_url and dj_database_url:
+if DATABASE_URL_FROM_ENV and dj_database_url:
     DATABASES = {
-        'default': dj_database_url.parse(database_url)
+        'default': dj_database_url.config(
+            default=DATABASE_URL_FROM_ENV, # Usar a variável já lida
+            conn_max_age=600,
+            conn_health_checks=True, # Adicionado pelo guia
+            ssl_require=config('DJANGO_DB_SSL_REQUIRE', default=True, cast=bool) # Mantendo flexibilidade para SSL
+        )
     }
-
+    # A configuração de 'sslmode': 'require' é geralmente tratada pelo dj_database_url se a URL incluir ?sslmode=require
+    # ou pode ser passada via 'OPTIONS'. Se dj_database_url.config não lida com isso automaticamente
+    # baseado na string de conexão, e você precisa forçar, pode ser necessário adicionar:
+    # DATABASES['default']['OPTIONS'] = {'sslmode': 'require'}
+    # No entanto, o Vercel Postgres geralmente inclui sslmode=require na DATABASE_URL.
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -236,6 +246,9 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_HTTPONLY = True
+    
+    # Adicionado para cache de sessão em produção
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 # Configuração de Logging
 LOGGING = {
@@ -281,11 +294,15 @@ LOGGING = {
 }
 
 # Configurações adicionais para produção
-if os.getenv('DATABASE_URL'):
-    # SSL para PostgreSQL em produção
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': 'require',
-    }
+# Removida a lógica duplicada de DATABASES['default']['OPTIONS'] para sslmode,
+# pois idealmente dj_database_url.config com ssl_require=True ou a própria DATABASE_URL já cuidam disso.
+# Se o Vercel Postgres sempre fornecer uma URL com sslmode=require, a opção ssl_require em dj_database_url.config
+# pode ser suficiente ou até mesmo desnecessária se a URL já for completa.
+# A configuração original era:
+# if os.getenv('DATABASE_URL'):
+#     DATABASES['default']['OPTIONS'] = {
+#         'sslmode': 'require',
+#     }
 
 # Timeout para requisições HTTP
 DEFAULT_HTTP_TIMEOUT = int(os.getenv('DEFAULT_HTTP_TIMEOUT') or '30')
