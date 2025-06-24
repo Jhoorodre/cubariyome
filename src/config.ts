@@ -4,7 +4,12 @@
  */
 
 // A URL base da sua API Django.
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
+const envApiBaseUrl = process.env.REACT_APP_API_BASE_URL;
+
+if (!envApiBaseUrl) {
+  throw new Error("Variável de ambiente REACT_APP_API_BASE_URL não está definida. Defina-a em seu arquivo .env ou nas configurações de ambiente.");
+}
+export const API_BASE_URL: string = envApiBaseUrl;
 
 // URLs da API
 export const SUWAYOMI_SERVER = API_BASE_URL;

@@ -7,10 +7,15 @@
       "config": { "distDir": "build" }
     }
   ],
+  "build": {
+    "env": {
+      "CI": "false"
+    }
+  },
   "routes": [
     {
       "src": "/api/(.*)",
-      "destination": "https://moe-server-7i445qvya-jhoorodres-projects.vercel.app/api/$1"
+      "dest": "https://moe-server-7i445qvya-jhoorodres-projects.vercel.app/api/$1"
     },
     {
       "handle": "filesystem"
